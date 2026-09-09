@@ -1,6 +1,5 @@
 package org.jboss.hal.testsuite.test.configuration.undertow.server.listener;
 
-import java.io.IOException;
 import java.util.Collections;
 
 import org.apache.commons.lang3.RandomStringUtils;
@@ -22,12 +21,12 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.wildfly.extras.creaper.core.CommandFailedException;
 import org.wildfly.extras.creaper.core.online.ModelNodeResult;
 import org.wildfly.extras.creaper.core.online.OnlineManagementClient;
-import org.wildfly.extras.creaper.core.online.operations.OperationException;
+import org.wildfly.extras.creaper.core.online.operations.Address;
 import org.wildfly.extras.creaper.core.online.operations.Operations;
 import org.wildfly.extras.creaper.core.online.operations.Values;
+import org.wildfly.extras.creaper.core.online.operations.admin.Administration;
 
 import static org.jboss.hal.dmr.ModelDescriptionConstants.NAME;
 import static org.jboss.hal.testsuite.fixtures.undertow.UndertowFixtures.serverAddress;
@@ -47,6 +46,10 @@ public class AJPListenerConfigurationTest {
     private static final OnlineManagementClient client = ManagementClientProvider.createOnlineManagementClient();
 
     private static final Operations operations = new Operations(client);
+
+    private static final Administration administration = new Administration(client);
+
+    private static final String AJP_REQUIRE_SECRET_PROPERTY = "io.undertow.ajp.REQUIRE_AJP_SECRET";
 
     private static final String UNDERTOW_SERVER_TO_BE_TESTED =
         "undertow-server-to-be-tested-" + RandomStringUtils.randomAlphanumeric(7);
@@ -68,7 +71,10 @@ public class AJPListenerConfigurationTest {
     private static final String WORKER_TO_BE_EDITED = "worker-to-be-edited-" + RandomStringUtils.randomAlphanumeric(7);
 
     @BeforeClass
-    public static void setUp() throws IOException, CommandFailedException {
+    public static void setUp() throws Exception {
+        operations.add(Address.root().and("system-property", AJP_REQUIRE_SECRET_PROPERTY),
+            Values.of("value", "false"));
+        administration.reloadIfRequired();
         operations.add(IOFixtures.bufferPoolAddress(BUFFER_POOL_TO_BE_EDITED)).assertSuccess();
         operations.add(IOFixtures.workerAddress(WORKER_TO_BE_EDITED)).assertSuccess();
         operations.add(serverAddress(UNDERTOW_SERVER_TO_BE_TESTED)).assertSuccess();
@@ -80,13 +86,15 @@ public class AJPListenerConfigurationTest {
     }
 
     @AfterClass
-    public static void tearDown() throws IOException, OperationException, CommandFailedException {
+    public static void tearDown() throws Exception {
         operations.removeIfExists(serverAddress(UNDERTOW_SERVER_TO_BE_TESTED));
         operations.removeIfExists(IOFixtures.bufferPoolAddress(BUFFER_POOL_TO_BE_EDITED));
         operations.removeIfExists(IOFixtures.workerAddress(WORKER_TO_BE_EDITED));
         client.apply(new RemoveLocalSocketBinding(SOCKET_BINDING));
         client.apply(new RemoveLocalSocketBinding(SOCKET_BINDING_TO_BE_EDITED));
         client.apply(new RemoveLocalSocketBinding(SOCKET_REDIRECT_TO_BE_EDITED));
+        operations.removeIfExists(Address.root().and("system-property", AJP_REQUIRE_SECRET_PROPERTY));
+        administration.reloadIfRequired();
     }
 
     @Before

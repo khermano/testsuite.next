@@ -1,7 +1,5 @@
 package org.jboss.hal.testsuite.test.configuration.undertow.server.listener;
 
-import java.io.IOException;
-
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jboss.arquillian.core.api.annotation.Inject;
 import org.jboss.arquillian.drone.api.annotation.Drone;
@@ -21,11 +19,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.openqa.selenium.WebDriver;
-import org.wildfly.extras.creaper.core.CommandFailedException;
 import org.wildfly.extras.creaper.core.online.OnlineManagementClient;
-import org.wildfly.extras.creaper.core.online.operations.OperationException;
+import org.wildfly.extras.creaper.core.online.operations.Address;
 import org.wildfly.extras.creaper.core.online.operations.Operations;
 import org.wildfly.extras.creaper.core.online.operations.Values;
+import org.wildfly.extras.creaper.core.online.operations.admin.Administration;
 
 @RunWith(Arquillian.class)
 public class AJPListenerTest {
@@ -46,6 +44,10 @@ public class AJPListenerTest {
 
     private static final Operations operations = new Operations(client);
 
+    private static final Administration administration = new Administration(client);
+
+    private static final String AJP_REQUIRE_SECRET_PROPERTY = "io.undertow.ajp.REQUIRE_AJP_SECRET";
+
     private static final String UNDERTOW_SERVER_TO_BE_TESTED =
         "undertow-server-to-be-tested-" + RandomStringUtils.randomAlphanumeric(7);
 
@@ -62,7 +64,10 @@ public class AJPListenerTest {
         "socket-binding-to-be-removed-" + RandomStringUtils.randomAlphanumeric(7);
 
     @BeforeClass
-    public static void setUp() throws IOException, CommandFailedException {
+    public static void setUp() throws Exception {
+        operations.add(Address.root().and("system-property", AJP_REQUIRE_SECRET_PROPERTY),
+            Values.of("value", "false"));
+        administration.reloadIfRequired();
         operations.add(UndertowFixtures.serverAddress(UNDERTOW_SERVER_TO_BE_TESTED));
         client.apply(new AddLocalSocketBinding(SOCKET_BINDING_TO_BE_ADDED));
         client.apply(new AddLocalSocketBinding(SOCKET_BINDING_TO_BE_REMOVED));
@@ -73,10 +78,12 @@ public class AJPListenerTest {
     }
 
     @AfterClass
-    public static void tearDown() throws IOException, OperationException, CommandFailedException {
+    public static void tearDown() throws Exception {
         operations.removeIfExists(UndertowFixtures.serverAddress(UNDERTOW_SERVER_TO_BE_TESTED));
         client.apply(new RemoveLocalSocketBinding(SOCKET_BINDING_TO_BE_ADDED));
         client.apply(new RemoveLocalSocketBinding(SOCKET_BINDING_TO_BE_REMOVED));
+        operations.removeIfExists(Address.root().and("system-property", AJP_REQUIRE_SECRET_PROPERTY));
+        administration.reloadIfRequired();
     }
 
     @Before
